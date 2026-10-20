@@ -25,16 +25,16 @@ class SessionResponse(BaseModel):
     """Session response providing the session ID and resolved CAPTCHA code."""
     success: bool = Field(default=True)
     session_id: str = Field(..., description="Unique search session ID")
-    captcha: str = Field(..., description="CAPTCHA text code (e.g. '7k89a')")
+    captcha: str = Field(..., description="CAPTCHA text code")
     expires_in_seconds: int = Field(default=600, description="Session time-to-live in seconds")
     captcha_required: bool = Field(default=False, description="Whether manual CAPTCHA solving is required")
-    captcha_image: Optional[str] = Field(None, description="Optional image data if explicitly requested")
+    captcha_image: Optional[str] = Field(None, description="Optional image data")
 
 
 class CaseSearchResponse(BaseModel):
     """Normalized response payload for case searches."""
     success: bool = Field(default=True)
-    search_type: str = Field(..., description="Search mode executed (e.g. 'cnr', 'case_number')")
+    search_type: str = Field(..., description="Search mode executed")
     query: Dict[str, Any] = Field(..., description="Original search query parameters")
     total_results: int = Field(..., description="Total matching cases found")
     results: List[CaseDetails] = Field(default_factory=list, description="List of normalized case details")

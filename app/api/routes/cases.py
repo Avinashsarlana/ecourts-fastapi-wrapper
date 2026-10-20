@@ -21,11 +21,8 @@ router = APIRouter(prefix="/cases", tags=["Case Searches"])
 @router.post(
     "/search",
     response_model=CaseSearchResponse,
-    summary="Search case by CNR number (Primary search method)",
-    description=(
-        "Submits a CNR search. 'session_id' and 'captcha' are optional and will be "
-        "automatically initialized and solved if omitted."
-    ),
+    summary="Search case by CNR number",
+    description="Submits a CNR search. 'session_id' and 'captcha' are optional.",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid CNR or Invalid CAPTCHA"},
         404: {"model": ErrorResponse, "description": "Case record not found"},
@@ -47,16 +44,13 @@ def search_case_by_cnr(payload: CNRSearchRequest) -> CaseSearchResponse:
 @router.get(
     "/search",
     response_model=CaseSearchResponse,
-    summary="Unified case search endpoint (Query parameters)",
-    description=(
-        "Search cases via GET query parameters. Simply supply `cnr` (e.g. MHAU019999992015). "
-        "The session and CAPTCHA resolution are handled automatically if omitted."
-    ),
+    summary="Unified case search endpoint",
+    description="Search cases via GET query parameters by providing the CNR number.",
 )
 def unified_case_search(
-    cnr: Optional[str] = Query(None, description="16-character CNR number (e.g. MHAU019999992015)"),
+    cnr: Optional[str] = Query(None, description="16-character CNR number"),
     session_id: Optional[str] = Query(None, description="Optional session ID"),
-    captcha: Optional[str] = Query(None, description="Optional CAPTCHA code (e.g. 7k89a)"),
+    captcha: Optional[str] = Query(None, description="Optional CAPTCHA code"),
 ) -> CaseSearchResponse:
     """Unified GET endpoint for case searches."""
     if not cnr:
@@ -100,7 +94,7 @@ def search_by_case_number(payload: CaseNumberSearchRequest) -> CaseSearchRespons
 @router.post(
     "/search/party",
     response_model=CaseSearchResponse,
-    summary="Search cases by Party Name (Petitioner / Respondent)",
+    summary="Search cases by Party Name",
     description="Searches cases where petitioner or respondent matches the given name.",
 )
 def search_by_party_name(payload: PartySearchRequest) -> CaseSearchResponse:

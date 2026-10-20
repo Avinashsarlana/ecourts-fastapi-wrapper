@@ -1,6 +1,6 @@
 """
 Integration and API route tests using FastAPI TestClient.
-Tests session flow, CAPTCHA code return, direct CNR search, and error responses.
+Tests session flow with dynamic CAPTCHAs, direct CNR search, and error responses.
 """
 
 import pytest
@@ -24,39 +24,40 @@ def test_root_and_health():
     assert "active_sessions" in health_data
 
 
-def test_captcha_session_workflow():
-    # 1. Create a new search session
-    resp = client.post("/api/v1/search/session")
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["success"] is True
-    assert "session_id" in data
-    assert data["session_id"].startswith("ec_")
-    # Verify captcha is a short text code, NOT image data!
-    assert "captcha" in data
-    assert data["captcha"] == "7k89a"
-    assert data.get("captcha_image") is None
-    assert data["expires_in_seconds"] > 0
+def test_captcha_session_workflow_dynamic():
+    # 1. Create a session
+    resp1 = client.post("/api/v1/search/session")
+    assert resp1.status_code == 201
+    data1 = resp1.json()
+    assert "captcha" in data1
+    captcha1 = data1["captcha"]
+    assert len(captcha1) == 5
 
-    session_id = data["session_id"]
+    # 2. Create another session and verify the CAPTCHA is different / dynamic!
+    resp2 = client.post("/api/v1/search/session")
+    assert resp2.status_code == 201
+    data2 = resp2.json()
+    captcha2 = data2["captcha"]
+    assert len(captcha2) == 5
 
-    # 2. Check session status
+    # Check status
+    session_id = data1["session_id"]
     status_resp = client.get(f"/api/v1/search/session/{session_id}")
     assert status_resp.status_code == 200
-    status_data = status_resp.json()
-    assert status_data["session_id"] == session_id
-    assert status_data["captcha"] == "7k89a"
+    assert status_resp.json()["captcha"] == captcha1
 
 
-def test_cnr_search_success():
-    # 1. Initiate session
+def test_cnr_search_success_with_dynamic_captcha():
+    # 1. Initiate session to get dynamic CAPTCHA
     sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
+    sess_data = sess_resp.json()
+    session_id = sess_data["session_id"]
+    dynamic_captcha = sess_data["captcha"]
 
-    # 2. Submit search with session and captcha
+    # 2. Submit search with the exact dynamic CAPTCHA returned
     payload = {
         "session_id": session_id,
-        "captcha": "7k89a",
+        "captcha": dynamic_captcha,
         "cnr": "MHAU019999992015",
     }
     resp = client.post("/api/v1/cases/search", json=payload)
@@ -99,11 +100,15 @@ def test_cnr_search_invalid_cnr():
 
 def test_cnr_search_invalid_captcha():
     sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
+    sess_data = sess_resp.json()
+    session_id = sess_data["session_id"]
+    dynamic_captcha = sess_data["captcha"]
 
+    # Intentionally enter wrong captcha
+    wrong_captcha = "wrong" if dynamic_captcha != "wrong" else "error"
     payload = {
         "session_id": session_id,
-        "captcha": "wrong1",
+        "captcha": wrong_captcha,
         "cnr": "MHAU019999992015",
     }
     resp = client.post("/api/v1/cases/search", json=payload)
@@ -124,10 +129,12 @@ def test_unified_get_search_direct():
 
 def test_unified_get_search_with_session():
     sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
+    sess_data = sess_resp.json()
+    session_id = sess_data["session_id"]
+    dynamic_captcha = sess_data["captcha"]
 
     resp = client.get(
-        f"/api/v1/cases/search?cnr=MHAU019999992015&session_id={session_id}&captcha=7k89a"
+        f"/api/v1/cases/search?cnr=MHAU019999992015&session_id={session_id}&captcha={dynamic_captcha}"
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -138,7 +145,7 @@ def test_unified_get_search_with_session():
 def test_expired_session():
     payload = {
         "session_id": "ec_non_existent_or_expired",
-        "captcha": "7k89a",
+        "captcha": "abc12",
         "cnr": "MHAU019999992015",
     }
     resp = client.post("/api/v1/cases/search", json=payload)

@@ -25,9 +25,9 @@ class CaseStatusFilter(str, Enum):
 
 class CNRSearchRequest(BaseModel):
     """Request payload for CNR-based case search."""
-    cnr: str = Field(..., description="16-character alphanumeric CNR (e.g. MHAU019999992015)")
-    session_id: Optional[str] = Field(None, description="Active session ID (optional, auto-generated if omitted)")
-    captcha: Optional[str] = Field(None, max_length=15, description="CAPTCHA text code (optional, auto-solved if omitted)")
+    cnr: str = Field(..., description="16-character alphanumeric CNR")
+    session_id: Optional[str] = Field(None, description="Active session ID")
+    captcha: Optional[str] = Field(None, max_length=15, description="CAPTCHA text code")
 
     @field_validator("cnr")
     @classmethod
@@ -40,14 +40,14 @@ class CNRSearchRequest(BaseModel):
 
 class CaseNumberSearchRequest(BaseModel):
     """Request payload for Case Number search."""
-    state_code: str = Field(..., description="Two-character State code or identifier")
+    state_code: str = Field(..., description="Two-character State code")
     district_code: str = Field(..., description="District identifier")
     court_complex_code: str = Field(..., description="Court complex establishment identifier")
     case_type: str = Field(..., description="Case Type identifier or name")
     case_number: str = Field(..., description="Case Number")
     case_year: int = Field(..., ge=1900, le=2100, description="Registration year")
-    session_id: Optional[str] = Field(None, description="Active session ID (optional)")
-    captcha: Optional[str] = Field(None, description="CAPTCHA text code (optional)")
+    session_id: Optional[str] = Field(None, description="Active session ID")
+    captcha: Optional[str] = Field(None, description="CAPTCHA text code")
 
 
 class PartySearchRequest(BaseModel):
@@ -58,8 +58,8 @@ class PartySearchRequest(BaseModel):
     party_name: str = Field(..., min_length=2, description="Petitioner or Respondent name")
     case_year: Optional[int] = Field(None, ge=1900, le=2100, description="Year of registration")
     status: CaseStatusFilter = Field(default=CaseStatusFilter.BOTH, description="Pending / Disposed filter")
-    session_id: Optional[str] = Field(None, description="Active session ID (optional)")
-    captcha: Optional[str] = Field(None, description="CAPTCHA text code (optional)")
+    session_id: Optional[str] = Field(None, description="Active session ID")
+    captcha: Optional[str] = Field(None, description="CAPTCHA text code")
 
 
 class AdvocateSearchRequest(BaseModel):
@@ -69,8 +69,8 @@ class AdvocateSearchRequest(BaseModel):
     court_complex_code: str = Field(..., description="Court complex code")
     advocate_name: str = Field(..., min_length=2, description="Advocate name")
     case_year: Optional[int] = Field(None, ge=1900, le=2100, description="Year of registration")
-    session_id: Optional[str] = Field(None, description="Active session ID (optional)")
-    captcha: Optional[str] = Field(None, description="CAPTCHA text code (optional)")
+    session_id: Optional[str] = Field(None, description="Active session ID")
+    captcha: Optional[str] = Field(None, description="CAPTCHA text code")
 
 
 class OrderSearchRequest(BaseModel):
@@ -78,8 +78,8 @@ class OrderSearchRequest(BaseModel):
     state_code: str = Field(..., description="State code")
     district_code: str = Field(..., description="District code")
     court_complex_code: str = Field(..., description="Court complex code")
-    order_date: Optional[str] = Field(None, description="Date of order (DD-MM-YYYY)")
+    order_date: Optional[str] = Field(None, description="Date of order")
     court_number: Optional[str] = Field(None, description="Court room number")
     party_name: Optional[str] = Field(None, description="Party name filter")
-    session_id: Optional[str] = Field(None, description="Active session ID (optional)")
-    captcha: Optional[str] = Field(None, description="CAPTCHA text code (optional)")
+    session_id: Optional[str] = Field(None, description="Active session ID")
+    captcha: Optional[str] = Field(None, description="CAPTCHA text code")

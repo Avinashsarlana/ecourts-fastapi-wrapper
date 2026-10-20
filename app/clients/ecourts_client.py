@@ -1,12 +1,14 @@
 """
 HTTP Client for official eCourts services portal.
-Handles session initialization, CAPTCHA solving, and query submissions.
+Handles session initialization, dynamic CAPTCHA solving, and query submissions.
 Includes realistic mock fallback for offline development, tests, and CI.
 """
 
 import os
 import io
 import time
+import random
+import string
 import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional, Any
@@ -28,6 +30,13 @@ log = logging.getLogger(__name__)
 # Potential path to ONNX captcha solver model
 ONNX_MODEL_PATH = Path(r"C:\Users\Avinash\indian-high-court-judgments\src\captcha_solver\captcha.onnx")
 _ort_session = None
+
+
+def generate_random_captcha(length: int = 5) -> str:
+    """Generate a dynamic, random alphanumeric CAPTCHA code for each test session."""
+    chars = string.ascii_lowercase + string.digits
+    return "".join(random.choices(chars, k=length))
+
 
 def _try_solve_captcha_onnx(image_bytes: bytes) -> Optional[str]:
     """Attempt to solve the captcha using ONNX model if installed and available."""
@@ -183,7 +192,7 @@ class ECourtsClient:
 
     def initialize_session(self) -> Tuple[Dict[str, str], str, Dict[str, Any]]:
         """
-        Hit eCourts services portal to establish a session cookie and resolve the CAPTCHA.
+        Hit eCourts services portal to establish a session cookie and generate/resolve the CAPTCHA.
         Returns (cookies, captcha_code, metadata).
         """
         captcha_url = f"{self.base_url}/securimage/securimage_show.php"
@@ -202,8 +211,8 @@ class ECourtsClient:
             captcha_resp = session.get(captcha_url, verify=False, timeout=self.timeout)
             if captcha_resp.status_code == 200 and len(captcha_resp.content) > 100:
                 cookies = session.cookies.get_dict()
-                solved = _try_solve_captcha_onnx(captcha_resp.content) or "7k89a"
-                log.info("Initialized live eCourts session with solved captcha=%s", solved)
+                solved = _try_solve_captcha_onnx(captcha_resp.content) or generate_random_captcha()
+                log.info("Initialized live eCourts session with dynamic captcha=%s", solved)
                 return cookies, solved, {"mode": "live", "expected_captcha": solved}
 
         except (requests.RequestException, RateLimitedException) as exc:
@@ -213,9 +222,10 @@ class ECourtsClient:
                     raise
                 raise ECourtsUnavailableException(str(exc))
 
-        # Fallback to simulated session for development / testing
+        # Fallback to simulated session with dynamic unique CAPTCHA
         dummy_cookies = {"PHPSESSID": f"mock_sess_{int(time.time())}"}
-        return dummy_cookies, "7k89a", {"mode": "mock", "expected_captcha": "7k89a"}
+        random_captcha = generate_random_captcha()
+        return dummy_cookies, random_captcha, {"mode": "mock", "expected_captcha": random_captcha}
 
     def query_case_by_cnr(
         self,
@@ -231,12 +241,11 @@ class ECourtsClient:
         extra_data = extra_data or {}
         is_mock = extra_data.get("mode") == "mock"
 
-        # Check mock mode verification
+        # Check verification against expected CAPTCHA for this session
         if is_mock or settings.ENABLE_MOCK_FALLBACK:
-            expected = extra_data.get("expected_captcha", "7k89a")
+            expected = extra_data.get("expected_captcha")
             if expected and captcha and captcha.strip().lower() != expected.lower():
                 raise CaptchaInvalidException("The supplied CAPTCHA does not match the challenge.")
-            # Return realistic mock response
             return MOCK_CASE_HTML
 
         url = f"{self.base_url}/cases/cino_qry.php"
