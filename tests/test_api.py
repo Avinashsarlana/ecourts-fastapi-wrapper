@@ -11,6 +11,12 @@ from app.config.settings import settings
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def ensure_mock_mode_for_tests(monkeypatch):
+    """Ensure test suite runs reliably regardless of live eCourts uptime."""
+    monkeypatch.setattr(settings, "ENABLE_MOCK_FALLBACK", True)
+
+
 def test_root_and_health():
     resp = client.get("/")
     assert resp.status_code == 200
@@ -50,6 +56,7 @@ def test_captcha_session_workflow_dynamic():
 def test_cnr_search_success_with_dynamic_captcha():
     # 1. Initiate session to get dynamic CAPTCHA
     sess_resp = client.post("/api/v1/search/session")
+    assert sess_resp.status_code == 201
     sess_data = sess_resp.json()
     session_id = sess_data["session_id"]
     dynamic_captcha = sess_data["captcha"]
@@ -100,6 +107,7 @@ def test_cnr_search_invalid_cnr():
 
 def test_cnr_search_invalid_captcha():
     sess_resp = client.post("/api/v1/search/session")
+    assert sess_resp.status_code == 201
     sess_data = sess_resp.json()
     session_id = sess_data["session_id"]
     dynamic_captcha = sess_data["captcha"]
@@ -129,6 +137,7 @@ def test_unified_get_search_direct():
 
 def test_unified_get_search_with_session():
     sess_resp = client.post("/api/v1/search/session")
+    assert sess_resp.status_code == 201
     sess_data = sess_resp.json()
     session_id = sess_data["session_id"]
     dynamic_captcha = sess_data["captcha"]
