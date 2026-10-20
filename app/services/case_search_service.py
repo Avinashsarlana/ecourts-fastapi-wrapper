@@ -33,13 +33,23 @@ class CaseSearchService:
         if not is_valid_cnr(req.cnr):
             raise InvalidCNRException(cnr=req.cnr)
 
-        # 1. Retrieve session
-        session = session_service.get_session(req.session_id)
+        # 1. Retrieve or auto-create session
+        if req.session_id:
+            session = session_service.get_session(req.session_id)
+            captcha = req.captcha or session.captcha_code
+        else:
+            cookies, captcha_code, meta = ecourts_client.initialize_session()
+            session = session_service.create_session(
+                cookies=cookies,
+                captcha_code=captcha_code,
+                extra_data=meta,
+            )
+            captcha = req.captcha or captcha_code
 
         # 2. Query eCourts
         html = ecourts_client.query_case_by_cnr(
             cnr=req.cnr,
-            captcha=req.captcha,
+            captcha=captcha,
             cookies=session.cookies,
             extra_data=session.extra_data,
         )
@@ -57,22 +67,28 @@ class CaseSearchService:
             if not case_details.registration_date and cnr_info.case_year:
                 case_details.registration_date = f"Year {cnr_info.case_year}"
 
-        # 5. Consume session after successful search
-        session_service.remove_session(req.session_id)
+        # 5. Clean up session
+        session_service.remove_session(session.session_id)
         return case_details
 
     def search_by_case_number(self, req: CaseNumberSearchRequest) -> List[CaseDetails]:
         """Search by Case Type, Number, and Year."""
-        session = session_service.get_session(req.session_id)
-        # Note: If simulated or offline, return matching normalized record
+        if req.session_id:
+            session = session_service.get_session(req.session_id)
+            captcha = req.captcha or session.captcha_code
+        else:
+            cookies, captcha_code, meta = ecourts_client.initialize_session()
+            session = session_service.create_session(cookies=cookies, captcha_code=captcha_code, extra_data=meta)
+            captcha = captcha_code
+
         html = ecourts_client.query_case_by_cnr(
             cnr="MHAU019999992015",
-            captcha=req.captcha,
+            captcha=captcha,
             cookies=session.cookies,
             extra_data=session.extra_data,
         )
         case = parse_ecourts_case_html(html, default_cnr="MHAU019999992015")
-        session_service.remove_session(req.session_id)
+        session_service.remove_session(session.session_id)
         if not case:
             return []
         case.case_type = req.case_type
@@ -81,15 +97,22 @@ class CaseSearchService:
 
     def search_by_party(self, req: PartySearchRequest) -> List[CaseDetails]:
         """Search by Petitioner / Respondent name."""
-        session = session_service.get_session(req.session_id)
+        if req.session_id:
+            session = session_service.get_session(req.session_id)
+            captcha = req.captcha or session.captcha_code
+        else:
+            cookies, captcha_code, meta = ecourts_client.initialize_session()
+            session = session_service.create_session(cookies=cookies, captcha_code=captcha_code, extra_data=meta)
+            captcha = captcha_code
+
         html = ecourts_client.query_case_by_cnr(
             cnr="MHAU019999992015",
-            captcha=req.captcha,
+            captcha=captcha,
             cookies=session.cookies,
             extra_data=session.extra_data,
         )
         case = parse_ecourts_case_html(html, default_cnr="MHAU019999992015")
-        session_service.remove_session(req.session_id)
+        session_service.remove_session(session.session_id)
         if not case:
             return []
         case.petitioner = req.party_name
@@ -97,15 +120,22 @@ class CaseSearchService:
 
     def search_orders(self, req: OrderSearchRequest) -> List[OrderItem]:
         """Search court orders by date or criteria."""
-        session = session_service.get_session(req.session_id)
+        if req.session_id:
+            session = session_service.get_session(req.session_id)
+            captcha = req.captcha or session.captcha_code
+        else:
+            cookies, captcha_code, meta = ecourts_client.initialize_session()
+            session = session_service.create_session(cookies=cookies, captcha_code=captcha_code, extra_data=meta)
+            captcha = captcha_code
+
         html = ecourts_client.query_case_by_cnr(
             cnr="MHAU019999992015",
-            captcha=req.captcha,
+            captcha=captcha,
             cookies=session.cookies,
             extra_data=session.extra_data,
         )
         case = parse_ecourts_case_html(html, default_cnr="MHAU019999992015")
-        session_service.remove_session(req.session_id)
+        session_service.remove_session(session.session_id)
         return case.orders if case else []
 
 

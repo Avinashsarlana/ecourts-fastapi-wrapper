@@ -59,7 +59,7 @@ class Settings(BaseSettings):
 
     # Testing & Offline Mode
     ENABLE_MOCK_FALLBACK: bool = Field(
-        default=True,
+        default=False,
         description="Enable simulated mock responses for local testing when live servers are unavailable"
     )
 

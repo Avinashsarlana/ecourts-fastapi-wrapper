@@ -22,16 +22,13 @@ class ErrorResponse(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    """Session initiation response containing CAPTCHA challenge for the user."""
+    """Session response providing the session ID and resolved CAPTCHA code."""
     success: bool = Field(default=True)
     session_id: str = Field(..., description="Unique search session ID")
-    captcha_required: bool = Field(default=True, description="Whether CAPTCHA must be solved")
-    captcha_image: str = Field(
-        ...,
-        description="Base64 data URI of the CAPTCHA image challenge (data:image/png;base64,...)"
-    )
-    audio_url: Optional[str] = Field(None, description="Optional audio CAPTCHA stream URL if supported")
+    captcha: str = Field(..., description="CAPTCHA text code (e.g. '7k89a')")
     expires_in_seconds: int = Field(default=600, description="Session time-to-live in seconds")
+    captcha_required: bool = Field(default=False, description="Whether manual CAPTCHA solving is required")
+    captcha_image: Optional[str] = Field(None, description="Optional image data if explicitly requested")
 
 
 class CaseSearchResponse(BaseModel):

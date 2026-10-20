@@ -1,6 +1,6 @@
 """
 Integration and API route tests using FastAPI TestClient.
-Tests session flow, human-in-the-loop CAPTCHA, CNR validation, and error responses.
+Tests session flow, CAPTCHA code return, direct CNR search, and error responses.
 """
 
 import pytest
@@ -32,8 +32,10 @@ def test_captcha_session_workflow():
     assert data["success"] is True
     assert "session_id" in data
     assert data["session_id"].startswith("ec_")
-    assert data["captcha_required"] is True
-    assert data["captcha_image"].startswith("data:image/png;base64,")
+    # Verify captcha is a short text code, NOT image data!
+    assert "captcha" in data
+    assert data["captcha"] == "7k89a"
+    assert data.get("captcha_image") is None
     assert data["expires_in_seconds"] > 0
 
     session_id = data["session_id"]
@@ -43,6 +45,7 @@ def test_captcha_session_workflow():
     assert status_resp.status_code == 200
     status_data = status_resp.json()
     assert status_data["session_id"] == session_id
+    assert status_data["captcha"] == "7k89a"
 
 
 def test_cnr_search_success():
@@ -50,7 +53,7 @@ def test_cnr_search_success():
     sess_resp = client.post("/api/v1/search/session")
     session_id = sess_resp.json()["session_id"]
 
-    # 2. Submit search with correct CAPTCHA (in mock mode, '7k89a')
+    # 2. Submit search with session and captcha
     payload = {
         "session_id": session_id,
         "captcha": "7k89a",
@@ -71,17 +74,23 @@ def test_cnr_search_success():
     assert len(case["orders"]) > 0
 
 
-def test_cnr_search_invalid_cnr():
-    sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
-
+def test_cnr_search_direct_without_session():
+    # Submit search directly with just CNR (auto-creates session and solves captcha)
     payload = {
-        "session_id": session_id,
-        "captcha": "7k89a",
+        "cnr": "MHAU019999992015",
+    }
+    resp = client.post("/api/v1/cases/search", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert len(data["results"]) == 1
+
+
+def test_cnr_search_invalid_cnr():
+    payload = {
         "cnr": "INVALIDCNR123",
     }
     resp = client.post("/api/v1/cases/search", json=payload)
-    # Pydantic validator will reject invalid CNR with 422
     assert resp.status_code == 422
     data = resp.json()
     assert data["success"] is False
@@ -104,16 +113,16 @@ def test_cnr_search_invalid_captcha():
     assert data["error"]["code"] == "CAPTCHA_INVALID"
 
 
-def test_unified_get_search_missing_captcha():
-    # Calling GET /api/v1/cases/search?cnr=... without session/captcha
+def test_unified_get_search_direct():
+    # Direct GET query with just CNR - no captcha or session required!
     resp = client.get("/api/v1/cases/search?cnr=MHAU019999992015")
-    assert resp.status_code == 428
+    assert resp.status_code == 200
     data = resp.json()
-    assert data["success"] is False
-    assert data["error"]["code"] == "CAPTCHA_REQUIRED"
+    assert data["success"] is True
+    assert len(data["results"]) == 1
 
 
-def test_unified_get_search_success():
+def test_unified_get_search_with_session():
     sess_resp = client.post("/api/v1/search/session")
     session_id = sess_resp.json()["session_id"]
 
@@ -140,12 +149,7 @@ def test_expired_session():
 
 
 def test_search_by_case_number():
-    sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
-
     payload = {
-        "session_id": session_id,
-        "captcha": "7k89a",
         "state_code": "MH",
         "district_code": "AU",
         "court_complex_code": "01",
@@ -162,12 +166,7 @@ def test_search_by_case_number():
 
 
 def test_search_by_party_name():
-    sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
-
     payload = {
-        "session_id": session_id,
-        "captcha": "7k89a",
         "state_code": "MH",
         "district_code": "AU",
         "court_complex_code": "01",
@@ -182,12 +181,7 @@ def test_search_by_party_name():
 
 
 def test_search_orders():
-    sess_resp = client.post("/api/v1/search/session")
-    session_id = sess_resp.json()["session_id"]
-
     payload = {
-        "session_id": session_id,
-        "captcha": "7k89a",
         "state_code": "MH",
         "district_code": "AU",
         "court_complex_code": "01",

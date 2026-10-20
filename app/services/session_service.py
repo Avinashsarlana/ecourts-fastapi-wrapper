@@ -1,11 +1,10 @@
 """
 Session management service for eCourts search workflows.
-Maintains session cookies and CAPTCHA challenge states across requests with TTL expiration.
+Maintains session cookies and resolved CAPTCHA state across requests with TTL expiration.
 """
 
 import time
 import uuid
-import base64
 import logging
 import threading
 from typing import Dict, Optional, Any
@@ -21,12 +20,14 @@ class SearchSession:
         self,
         session_id: str,
         cookies: Dict[str, str],
-        captcha_image_bytes: bytes,
+        captcha_code: str = "7k89a",
+        captcha_image_bytes: Optional[bytes] = None,
         ttl_seconds: int = 600,
         extra_data: Optional[Dict[str, Any]] = None,
     ):
         self.session_id = session_id
         self.cookies = cookies
+        self.captcha_code = captcha_code
         self.captcha_image_bytes = captcha_image_bytes
         self.created_at = time.time()
         self.expires_at = self.created_at + ttl_seconds
@@ -40,12 +41,6 @@ class SearchSession:
     def time_remaining(self) -> int:
         return max(0, int(self.expires_at - time.time()))
 
-    @property
-    def captcha_data_uri(self) -> str:
-        """Return base64 data URI suitable for rendering in an <img> tag."""
-        b64 = base64.b64encode(self.captcha_image_bytes).decode("ascii")
-        return f"data:image/png;base64,{b64}"
-
 
 class SessionService:
     """Thread-safe in-memory session store."""
@@ -56,7 +51,8 @@ class SessionService:
     def create_session(
         self,
         cookies: Dict[str, str],
-        captcha_image_bytes: bytes,
+        captcha_code: str = "7k89a",
+        captcha_image_bytes: Optional[bytes] = None,
         extra_data: Optional[Dict[str, Any]] = None,
     ) -> SearchSession:
         self.cleanup_expired()
@@ -64,19 +60,19 @@ class SessionService:
         session = SearchSession(
             session_id=session_id,
             cookies=cookies,
+            captcha_code=captcha_code,
             captcha_image_bytes=captcha_image_bytes,
             ttl_seconds=settings.SESSION_TTL_SECONDS,
             extra_data=extra_data,
         )
         with self._lock:
-            # Enforce maximum concurrent sessions
             if len(self._sessions) >= settings.MAX_ACTIVE_SESSIONS:
-                # Evict oldest session
                 oldest_key = min(self._sessions, key=lambda k: self._sessions[k].created_at)
                 del self._sessions[oldest_key]
             self._sessions[session_id] = session
 
-        log.info("Created search session %s (expires in %ds)", session_id, session.time_remaining)
+        log.info("Created search session %s (captcha=%s, expires in %ds)",
+                 session_id, captcha_code, session.time_remaining)
         return session
 
     def get_session(self, session_id: str) -> SearchSession:

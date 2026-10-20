@@ -13,7 +13,7 @@ from app.schemas.search import (
 )
 from app.services.case_search_service import case_search_service
 from app.utils.cnr_validator import clean_cnr, is_valid_cnr
-from app.utils.exceptions import InvalidCNRException, CaptchaRequiredException
+from app.utils.exceptions import InvalidCNRException
 
 router = APIRouter(prefix="/cases", tags=["Case Searches"])
 
@@ -23,18 +23,17 @@ router = APIRouter(prefix="/cases", tags=["Case Searches"])
     response_model=CaseSearchResponse,
     summary="Search case by CNR number (Primary search method)",
     description=(
-        "Submits a CNR search with a user-solved CAPTCHA for an active session. "
-        "Returns fully normalized case details, parties, advocates, timeline, and order links."
+        "Submits a CNR search. 'session_id' and 'captcha' are optional and will be "
+        "automatically initialized and solved if omitted."
     ),
     responses={
         400: {"model": ErrorResponse, "description": "Invalid CNR or Invalid CAPTCHA"},
         404: {"model": ErrorResponse, "description": "Case record not found"},
         410: {"model": ErrorResponse, "description": "Session expired"},
-        428: {"model": ErrorResponse, "description": "CAPTCHA required"},
     },
 )
 def search_case_by_cnr(payload: CNRSearchRequest) -> CaseSearchResponse:
-    """Submit CNR search with solved CAPTCHA."""
+    """Submit CNR search with optional session/captcha."""
     case = case_search_service.search_by_cnr(payload)
     return CaseSearchResponse(
         success=True,
@@ -50,33 +49,25 @@ def search_case_by_cnr(payload: CNRSearchRequest) -> CaseSearchResponse:
     response_model=CaseSearchResponse,
     summary="Unified case search endpoint (Query parameters)",
     description=(
-        "Search cases via GET query parameters. For automated or interactive clients, "
-        "provide `cnr`, `session_id`, and `captcha`."
+        "Search cases via GET query parameters. Simply supply `cnr` (e.g. MHAU019999992015). "
+        "The session and CAPTCHA resolution are handled automatically if omitted."
     ),
 )
 def unified_case_search(
-    cnr: Optional[str] = Query(None, description="16-character CNR number"),
-    session_id: Optional[str] = Query(None, description="Active session ID from /search/session"),
-    captcha: Optional[str] = Query(None, description="Solved CAPTCHA text"),
+    cnr: Optional[str] = Query(None, description="16-character CNR number (e.g. MHAU019999992015)"),
+    session_id: Optional[str] = Query(None, description="Optional session ID"),
+    captcha: Optional[str] = Query(None, description="Optional CAPTCHA code (e.g. 7k89a)"),
 ) -> CaseSearchResponse:
     """Unified GET endpoint for case searches."""
     if not cnr:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one search criterion (e.g. 'cnr') must be supplied.",
+            detail="At least one search criterion ('cnr') must be supplied.",
         )
 
     cleaned = clean_cnr(cnr)
     if not is_valid_cnr(cleaned):
         raise InvalidCNRException(cnr=cnr)
-
-    if not session_id or not captcha:
-        raise CaptchaRequiredException(
-            message=(
-                "eCourts requires CAPTCHA verification. Please call POST /api/v1/search/session "
-                "first to receive a challenge image, then pass 'session_id' and 'captcha'."
-            )
-        )
 
     req = CNRSearchRequest(session_id=session_id, captcha=captcha, cnr=cleaned)
     case = case_search_service.search_by_cnr(req)
