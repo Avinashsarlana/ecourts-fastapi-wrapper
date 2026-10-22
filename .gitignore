@@ -1,11 +1,73 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+
+# C extensions
+*.obj
+*.o
+*.pyd
+
+# Virtual Environments
 .venv/
 venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment Variables & Secrets
 .env
+.env*.local
+!.env.example
+
+# Unit test & coverage artifacts
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Type checking & linter caches
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# Operating System Files
 .DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Logs & Databases
 *.log
+logs/
+*.sqlite
+*.sqlite3
+*.db
+
+# Application Temporary & Runtime Artifacts
 captcha-tmp/
 captcha-failures/
+tmp/
+temp/
+downloads/
+
+# Build & Distribution
+dist/
+build/
+*.egg-info/
+*.egg
