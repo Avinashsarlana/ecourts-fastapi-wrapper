@@ -18,6 +18,8 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Standardized error envelope returned for all API exceptions."""
     success: bool = Field(default=False)
+    message: Optional[str] = Field(None, description="Human-readable error explanation")
+    cnr: Optional[str] = Field(None, description="CNR number associated with the query, if applicable")
     error: ErrorDetail
 
 

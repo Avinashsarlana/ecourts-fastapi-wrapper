@@ -48,8 +48,14 @@ class SessionExpiredException(ECourtsException):
 
 
 class CaseNotFoundException(ECourtsException):
-    def __init__(self, message: str = "No case record found matching the search criteria."):
-        super().__init__(message=message, code="CASE_NOT_FOUND", status_code=404)
+    def __init__(
+        self,
+        message: str = "No matching case data was found for the requested CNR.",
+        cnr: Optional[str] = None,
+    ):
+        details = {"cnr": cnr} if cnr else None
+        super().__init__(message=message, code="CASE_NOT_FOUND", status_code=404, details=details)
+        self.cnr = cnr
 
 
 class ECourtsUnavailableException(ECourtsException):

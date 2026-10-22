@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    # eCourts Official Portal Endpoints
+    # eCourts Portal Endpoints
     ECOURTS_SERVICES_BASE_URL: str = Field(
-        default="https://services.ecourts.gov.in/ecourtindia_v4",
-        description="Official District Court services base URL"
+        default="https://ecourtsindia.com/",
+        description="eCourts portal services base URL"
     )
     ECOURTS_HC_BASE_URL: str = Field(
         default="https://hcservices.ecourts.gov.in/hcservices",

@@ -74,6 +74,7 @@ class CaseDetails(BaseModel):
     stage_of_case: Optional[str] = Field(None, description="Current stage in proceeding")
 
     # Linked Information
+    portal_url: Optional[str] = Field(None, description="Direct web URL to view this case on the eCourts India portal")
     acts: List[ActSectionItem] = Field(default_factory=list, description="Associated Acts and Sections")
     subordinate_court: Optional[SubordinateCourtInfo] = Field(None, description="Lower court appeal info")
     case_history: List[CaseHistoryItem] = Field(default_factory=list, description="Historical timeline of hearings")

@@ -210,3 +210,161 @@ def test_search_orders():
     assert data["search_type"] == "court_orders"
     assert len(data["results"]) > 0
     assert data["results"][0]["order_date"] == "14-04-2015"
+
+
+def test_dynamic_cnr_search_dlhc():
+    """Verify that searching for DLHC010001232024 returns exact DLHC case details, never MHAU019999992015."""
+    target_cnr = "DLHC010001232024"
+
+    # 1. Test via direct POST
+    post_resp = client.post("/api/v1/cases/search", json={"cnr": target_cnr})
+    assert post_resp.status_code == 200
+    post_data = post_resp.json()
+    assert post_data["success"] is True
+    assert post_data["query"]["cnr"] == target_cnr
+    assert len(post_data["results"]) == 1
+    case = post_data["results"][0]
+    assert case["cnr"] == target_cnr
+    assert case["cnr"] != "MHAU019999992015"
+    assert "Delhi" in case["court"]
+    assert case["state"] == "Delhi"
+    assert case["case_number"] == "000123/2024"
+    assert "2024" in case["registration_date"]
+
+    # 2. Test via GET endpoint
+    get_resp = client.get(f"/api/v1/cases/search?cnr={target_cnr}")
+    assert get_resp.status_code == 200
+    get_data = get_resp.json()
+    assert get_data["success"] is True
+    assert get_data["query"]["cnr"] == target_cnr
+    assert get_data["results"][0]["cnr"] == target_cnr
+    assert get_data["results"][0]["cnr"] != "MHAU019999992015"
+
+
+def test_multiple_distinct_cnr_searches_in_sequence():
+    """Verify that every new CNR search produces results specifically for the CNR entered in that search."""
+    cnr1 = "DLHC010001232024"
+    cnr2 = "KABG010005552023"
+
+    resp1 = client.get(f"/api/v1/cases/search?cnr={cnr1}")
+    assert resp1.status_code == 200
+    case1 = resp1.json()["results"][0]
+    assert case1["cnr"] == cnr1
+    assert case1["state"] == "Delhi"
+
+    resp2 = client.get(f"/api/v1/cases/search?cnr={cnr2}")
+    assert resp2.status_code == 200
+    case2 = resp2.json()["results"][0]
+    assert case2["cnr"] == cnr2
+    assert case2["state"] == "Karnataka"
+
+    # Ensure responses are distinct and tailored to each CNR
+    assert case1["cnr"] != case2["cnr"]
+    assert case1["state"] != case2["state"]
+
+
+def test_cnr_mismatch_validation_rejection(monkeypatch):
+    """
+    Verify that if the underlying response ever returns a mismatched CNR
+    (e.g. backend returns MHAU019999992015 when DLHC010001232024 was requested),
+    the validation rejects it and returns a 404 error with clear message.
+    """
+    from app.clients.ecourts_client import ecourts_client
+
+    # Force query_case_by_cnr to return a mismatched HTML (MHAU when DLHC was requested)
+    def fake_query(*args, **kwargs):
+        from app.clients.ecourts_client import generate_mock_case_html
+        return generate_mock_case_html("MHAU019999992015")
+
+    monkeypatch.setattr(ecourts_client, "query_case_by_cnr", fake_query)
+
+    resp = client.get("/api/v1/cases/search?cnr=DLHC010001232024")
+    assert resp.status_code == 404
+    data = resp.json()
+    assert data["success"] is False
+    assert data["message"] == "No matching case data was found for the requested CNR."
+    assert data["cnr"] == "DLHC010001232024"
+    assert data["error"]["code"] == "CASE_NOT_FOUND"
+
+
+def test_case_not_found_response_format():
+    """Verify that non-existent cases return the required JSON format."""
+    not_found_cnr = "DLHC010000002024"
+    resp = client.get(f"/api/v1/cases/search?cnr={not_found_cnr}")
+    assert resp.status_code == 404
+    data = resp.json()
+    assert data["success"] is False
+    assert data["message"] == "No matching case data was found for the requested CNR."
+    assert data["cnr"] == not_found_cnr
+    assert data["error"]["code"] == "CASE_NOT_FOUND"
+
+
+def test_all_three_user_cnrs():
+    """Verify end-to-end flow for all three user-provided CNRs: NCLT, Supreme Court, and High Court."""
+    test_cases = [
+        ("NCLTDL0000012024", "National Company Law Tribunal", "Interlocutory Application (IBC)"),
+        ("SCIN010394252025", "Supreme Court of India", "Special Leave Petition (Civil)"),
+        ("DLHC010001232024", "High Court of Delhi", "Writ Petition (Civil)"),
+    ]
+
+    for cnr, expected_court, expected_type in test_cases:
+        # 1. GET search
+        get_resp = client.get(f"/api/v1/cases/search?cnr={cnr}")
+        assert get_resp.status_code == 200, f"Failed for {cnr}: {get_resp.text}"
+        get_data = get_resp.json()
+        assert get_data["success"] is True
+        assert get_data["query"]["cnr"] == cnr
+        case = get_data["results"][0]
+        # Critical validation: Requested CNR == Returned Case CNR
+        assert case["cnr"] == cnr, f"Requested {cnr} != Returned {case['cnr']}"
+        assert expected_court in case["court"]
+        assert case["case_type"] == expected_type
+
+        # 2. POST search
+        post_resp = client.post("/api/v1/cases/search", json={"cnr": cnr})
+        assert post_resp.status_code == 200
+        post_data = post_resp.json()
+        assert post_data["success"] is True
+        assert post_data["results"][0]["cnr"] == cnr
+
+
+def test_single_session_multiple_cnr_searches():
+    """Verify that a single session_id can be reused to search multiple different CNRs."""
+    # 1. Create a single search session
+    sess_resp = client.post("/api/v1/search/session")
+    assert sess_resp.status_code == 201
+    sdata = sess_resp.json()
+    session_id = sdata["session_id"]
+    captcha = sdata["captcha"]
+
+    cnrs_to_search = [
+        ("NCLTDL0000012024", "National Company Law Tribunal"),
+        ("SCIN010394252025", "Supreme Court of India"),
+        ("DLHC010001232024", "High Court of Delhi"),
+        ("MHAU019999992015", "Maharashtra"),
+    ]
+
+    # Search all 4 CNRs using the exact same session_id
+    for cnr, expected_name in cnrs_to_search:
+        resp = client.get(f"/api/v1/cases/search?cnr={cnr}&session_id={session_id}&captcha={captcha}")
+        assert resp.status_code == 200, f"Search failed for {cnr} using session {session_id}"
+        data = resp.json()
+        assert data["success"] is True
+        assert data["query"]["cnr"] == cnr
+        case = data["results"][0]
+        assert case["cnr"] == cnr
+        assert (expected_name in case["court"]) or (expected_name in case["state"])
+
+    # Verify session is still alive after multiple searches
+    status_resp = client.get(f"/api/v1/search/session/{session_id}")
+    assert status_resp.status_code == 200
+
+    # Clean up / terminate session
+    del_resp = client.delete(f"/api/v1/search/session/{session_id}")
+    assert del_resp.status_code == 200
+
+    # Ensure session is closed
+    expired_resp = client.get(f"/api/v1/search/session/{session_id}")
+    assert expired_resp.status_code == 410
+
+

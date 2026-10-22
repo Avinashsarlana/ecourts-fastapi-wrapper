@@ -2,6 +2,7 @@
 API routes for case search operations (CNR, Case Number, Party Name).
 """
 
+import logging
 from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException, status
 from app.schemas.response import CaseSearchResponse, ErrorResponse
@@ -14,6 +15,8 @@ from app.schemas.search import (
 from app.services.case_search_service import case_search_service
 from app.utils.cnr_validator import clean_cnr, is_valid_cnr
 from app.utils.exceptions import InvalidCNRException
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cases", tags=["Case Searches"])
 
@@ -31,11 +34,17 @@ router = APIRouter(prefix="/cases", tags=["Case Searches"])
 )
 def search_case_by_cnr(payload: CNRSearchRequest) -> CaseSearchResponse:
     """Submit CNR search with optional session/captcha."""
+    log.info("CNR received by FastAPI: '%s' (endpoint: POST /cases/search)", payload.cnr)
+    cleaned = clean_cnr(payload.cnr)
+    log.info("CNR after validation/normalization: '%s'", cleaned)
+    if not is_valid_cnr(cleaned):
+        raise InvalidCNRException(cnr=payload.cnr)
+    payload.cnr = cleaned
     case = case_search_service.search_by_cnr(payload)
     return CaseSearchResponse(
         success=True,
         search_type="cnr",
-        query={"cnr": payload.cnr},
+        query={"cnr": cleaned},
         total_results=1,
         results=[case],
     )
@@ -53,6 +62,7 @@ def unified_case_search(
     captcha: Optional[str] = Query(None, description="Optional CAPTCHA code"),
 ) -> CaseSearchResponse:
     """Unified GET endpoint for case searches."""
+    log.info("CNR received by FastAPI: '%s' (endpoint: GET /cases/search)", cnr)
     if not cnr:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -60,6 +70,7 @@ def unified_case_search(
         )
 
     cleaned = clean_cnr(cnr)
+    log.info("CNR after validation/normalization: '%s'", cleaned)
     if not is_valid_cnr(cleaned):
         raise InvalidCNRException(cnr=cnr)
 

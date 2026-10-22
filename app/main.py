@@ -27,9 +27,9 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.PROJECT_VERSION,
     description="""
-# Official eCourts Services REST API Wrapper
+# eCourts India REST API Wrapper
 
-A developer-friendly **REST API** that integrates with India's official **eCourts Services** platform (`services.ecourts.gov.in`).
+A developer-friendly **REST API** that integrates with the **eCourts India** platform ([eCourts India - AI-Powered Legal Information Portal](https://ecourtsindia.com/)).
 
 ### Key Capabilities:
 * **Primary CNR Search (`/api/v1/cases/search`)**: Search case status, historical hearings, judges, and orders using the 16-character alphanumeric CNR.
@@ -57,16 +57,19 @@ app.add_middleware(
 async def ecourts_exception_handler(request: Request, exc: ECourtsException):
     """Handle domain-specific eCourts exceptions."""
     log.warning("ECourtsException [%s]: %s (path: %s)", exc.code, exc.message, request.url.path)
+    cnr_val = exc.details.get("cnr") if exc.details else getattr(exc, "cnr", None)
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
             success=False,
+            message=exc.message,
+            cnr=cnr_val,
             error=ErrorDetail(
                 code=exc.code,
                 message=exc.message,
-                details=exc.details,
+                details=exc.details if exc.details else None,
             ),
-        ).model_dump(),
+        ).model_dump(exclude_none=True),
     )
 
 
@@ -147,3 +150,4 @@ def health_check() -> HealthResponse:
         timestamp=datetime.now(timezone.utc).isoformat(),
         active_sessions=session_service.active_session_count,
     )
+

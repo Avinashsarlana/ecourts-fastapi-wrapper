@@ -58,3 +58,14 @@ def get_session_status(session_id: str) -> SessionResponse:
         expires_in_seconds=session.time_remaining,
         captcha_required=False,
     )
+
+
+@router.delete(
+    "/search/session/{session_id}",
+    summary="Terminate an active search session",
+    description="Closes an active session manually when batch searches are completed.",
+)
+def terminate_session(session_id: str):
+    """Manually terminate and clean up an active search session."""
+    session_service.remove_session(session_id)
+    return {"success": True, "message": f"Session {session_id} successfully terminated."}
